@@ -735,6 +735,6 @@ static void __exit pi4io16_exit(void)
 
 module_exit(pi4io16_exit);
 
-MODULE_AUTHOR("Test Test@test.com);
+MODULE_AUTHOR("Test Test@test.com");
 MODULE_DESCRIPTION("PI4IOE5V6416 16-bit I2C GPIO expander driver");
 MODULE_LICENSE("GPL v2");
