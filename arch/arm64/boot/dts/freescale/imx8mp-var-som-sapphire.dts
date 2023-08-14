@@ -144,16 +144,12 @@
 	status = "okay";
 
 
+
 	 PI4IOE5V6416_B: gpio@20 {
-		compatible = "nxp,PI4IOE5V6416";
+		compatible = "pericom,pi4ioe5v6416";
 		reg = <0x20>;
 		gpio-controller;
 		pinctrl-names = "default";
-		pinctrl-0 = <&pinctrl_PI4IOE5V6416>;
-		interrupt-parent = <&gpio4>;
-		interrupts = <25 IRQ_TYPE_EDGE_FALLING>;
-		#gpio-cells = <2>;
-		wakeup-source;
 		status = "okay";
 
 		
@@ -210,11 +206,10 @@
 
 
 	 PI4IOE5V6416: gpio@20 {
-		compatible = "nxp,PI4IOE5V6416";
+		compatible = "pericom,pi4ioe5v6416";
 		reg = <0x20>;
 		gpio-controller;
 		pinctrl-names = "default";
-		pinctrl-0 = <&pinctrl_PI4IOE5V6416>;
 		status = "okay";
 
 		
@@ -670,9 +665,4 @@
 			>;
 	};
 
-	pinctrl_PI4IOE5V6416: PI4IOE5V6416grp {
-		fsl,pins = <
-			MX8MP_IOMUXC_SAI2_TXC__GPIO4_IO25				0xc0
-		>;
-	};
 };
