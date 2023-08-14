@@ -156,7 +156,7 @@
 	};
 
 	/* USB Type-C Controller */
-	ptn5150: ptn5150@f3d {
+	typec@3d {
 		compatible = "nxp,ptn5150";
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_extcon>;
