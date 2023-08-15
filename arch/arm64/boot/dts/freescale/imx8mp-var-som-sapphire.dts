@@ -586,8 +586,8 @@
 			MX8MP_IOMUXC_I2C4_SDA__I2C4_SDA					0x400001c2
 		>;
 	};
-	p
-	inctrl_i2c6: i2c6grp {
+	
+	pinctrl_i2c6: i2c6grp {
 		fsl,pins = <
 			MX8MP_IOMUXC_UART4_RXD__I2C6_SCL				0x400001c2
 			MX8MP_IOMUXC_UART4_TXD__I2C6_SDA				0x400001c2
@@ -677,14 +677,7 @@
 			MX8MP_IOMUXC_GPIO1_IO14__GPIO1_IO14				0x1c4
 		>;
 	};
-	pinctrl_ecspi1: ecspi11grp {
-		fsl,pins = <
-			MX8MP_IOMUXC_I2C1_SCL__ECSPI1_SCLK				0x12
-			MX8MP_IOMUXC_I2C1_SDA__ECSPI1_MOSI				0x12
-			MX8MP_IOMUXC_I2C2_SCL__ECSPI1_MISO 				0x12
-			MX8MP_IOMUXC_I2C2_SDA__ECSPI1_SS0				0x12
-		>;
-	};
+	
 
 	pinctrl_ecspi2: ecspi12grp {
 		fsl,pins = <
