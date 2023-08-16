@@ -17,6 +17,7 @@
 #include <linux/rtc.h>
 #include <linux/spi/spi.h>
 #include <linux/bcd.h>
+#include <linux/regmap.h>
 
 /* Registers in pca21125 rtc */
 
@@ -30,6 +31,7 @@
 #define PCA21125_CONTROL_REG 0x01
 #define PCA21125_STATUS_REG 0x00
 #define PCA21125_CLOCK_BURST 0x0D
+
 
 static int pca21125_read_reg(struct device *dev, unsigned char address,
                              unsigned char *data)
@@ -150,9 +152,19 @@ static int pca21125_probe(struct spi_device *spi)
     return 0;
 }
 
+static const struct of_device_id pca21125_of_match[] = {
+	{.compatible = "nxp,pca21125"},
+	{},
+};
+
+MODULE_DEVICE_TABLE(of, pca21125_of_match);
+
+
+
 static struct spi_driver pca21125_driver = {
     .driver = {
         .name = "pca21125",
+	.of_match_table = pca21125_of_match,
     },
     .probe = pca21125_probe,
 };

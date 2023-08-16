@@ -959,8 +959,8 @@
 				clocks = <&clk IMX8MP_CLK_UART1_ROOT>,
 					 <&clk IMX8MP_CLK_UART1_ROOT>;
 				clock-names = "ipg", "per";
-				dmas = <&sdma1 22 4 0>, <&sdma1 23 4 0>;
-				dma-names = "rx", "tx";
+			/*	dmas = <&sdma1 22 4 0>, <&sdma1 23 4 0>;
+				dma-names = "rx", "tx";*/
 				status = "disabled";
 			};
 
