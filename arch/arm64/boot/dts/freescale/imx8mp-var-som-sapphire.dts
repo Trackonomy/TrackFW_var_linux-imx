@@ -489,11 +489,21 @@
 &ecspi1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_ecspi1>;
+	cs-gpios = <&gpio5 17 GPIO_ACTIVE_LOW>;
 	status = "okay";
 
+	ads7846@0 {
+		status = "disabled";
+	};
+
+	
 	rtc@0 {
 		compatible = "nxp,pca21125";
+		pinctrl-names = "default";
+		#address-cells = <1>;
+  		#size-cells = <1>;
 		reg = <0>;
+		spi-max-frequency = <4000000>;
 		status = "okay";
 	};
 
@@ -509,7 +519,7 @@
 		compatible = "var,spidev";
 		reg = <1>;
 		spi-max-frequency = <12000000>;
-		status = "okay";
+		status = "disabled";
 	};
 };
 
@@ -519,6 +529,12 @@
 		gpios = <6 0>;
 		output-low;
 		line-name = "cam_buf";
+	};
+	ftdi_rst_hog {
+		gpio-hog;
+		gpios = <16 0>;
+		output-high;
+		line-name = "ftdi_reset";
 	};
 };
 
@@ -720,7 +736,7 @@
 			MX8MP_IOMUXC_I2C1_SCL__ECSPI1_SCLK				0x12
 			MX8MP_IOMUXC_I2C1_SDA__ECSPI1_MOSI				0x12
 			MX8MP_IOMUXC_I2C2_SCL__ECSPI1_MISO 				0x12
-			MX8MP_IOMUXC_I2C2_SDA__ECSPI1_SS0				0x12
+			MX8MP_IOMUXC_I2C2_SDA__GPIO5_IO17				0x12
 		>;
 	};
 
