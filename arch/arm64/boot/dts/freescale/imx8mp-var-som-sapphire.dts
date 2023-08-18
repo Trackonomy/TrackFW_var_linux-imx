@@ -21,7 +21,7 @@
 		compatible = "gpio-leds";
 		status = "okay";
 
-		led_m_red {
+	/*	led_m_red {
 			label = "led_m_red";
 			gpios = <&gpio5 1 GPIO_ACTIVE_HIGH>;
 			default-state = "off";
@@ -45,7 +45,7 @@
 			label = "red_led";
 			gpios = <&gpio4 9 GPIO_ACTIVE_HIGH>;
 			default-state = "off";
-		};
+		};*/
 	};
 
 	backlight: backlight {
@@ -110,12 +110,12 @@
 				<48000>,
 				<96000>,
 				<192000>;
-		status = "okay";
+		status = "disabled";
 	};
 };
 
 &aud2htx {
-	status = "okay";
+	status = "disabled";
 };
 
 &pwm1 {
@@ -125,11 +125,32 @@
 };
 
 &eqos {
-	status = "okay";
+	status = "disabled";
 };
 
 &fec {
-	status = "disabled";
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_eqos0>;
+	phy-mode = "rgmii";
+	phy-handle = <&ethphy1>;
+	status = "okay";
+	mdio {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		ethphy1: ethernet-phy@5 {
+			compatible = "ethernet-phy-ieee802.3-c22";
+			reg = <5>;
+			at803x,eee-disabled;
+			eee-broken-1000t;
+			vddio-supply = <&vddio1>;
+
+			vddio1: vddi1-regulator {
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+			};
+		};
+	};
 };
 
 &flexspi {
@@ -220,17 +241,17 @@
             ti,datarate = <5>;
             };
         channel@1 {
-            reg = <4>;
+            reg = <1>;
             ti,gain = <3>;
             ti,datarate = <5>;
         };
         channel@2 {
-            reg = <4>;
+            reg = <2>;
             ti,gain = <3>;
             ti,datarate = <5>;
         };
         channel@3 {
-            reg = <4>;
+            reg = <3>;
             ti,gain = <3>;
             ti,datarate = <5>;
         };
@@ -259,12 +280,12 @@
 			line-name = "cell_pwr_full_off";
 		};
 
-		cell_rst {
+	/*	cell_rst {
 			gpio-hog;
 			gpios = <10 0>;
 			output-low;
 			line-name = "cell_rst";
-		};
+		}; */
 		
 	};
 
@@ -386,12 +407,15 @@
 	pinctrl-0 = <&pinctrl_uart2>;
 	status = "okay";
 };
-
+/*
 &uart3 {
 	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_uart3>;
+	pinctrl-0 = <&pinctrl_uart3>, <&pinctrl_bt>;
+	assigned-clocks = <&clk IMX8MP_CLK_UART3>;
+	assigned-clock-parents = <&clk IMX8MP_SYS_PLL1_80M>;
+	uart-has-rtscts;
 	status = "okay";
-};
+};*/
 
 /* Header */
 &uart4 {
@@ -489,14 +513,14 @@
 &ecspi1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_ecspi1>;
-	cs-gpios = <&gpio5 17 GPIO_ACTIVE_LOW>;
+	cs-gpios = <&gpio5 17 GPIO_ACTIVE_HIGH>;
 	status = "okay";
 
 	ads7846@0 {
 		status = "disabled";
 	};
 
-	
+
 	rtc@0 {
 		compatible = "nxp,pca21125";
 		pinctrl-names = "default";
@@ -530,13 +554,14 @@
 		output-low;
 		line-name = "cam_buf";
 	};
-	ftdi_rst_hog {
+/*	ftdi_rst_hog {
 		gpio-hog;
 		gpios = <16 0>;
 		output-high;
 		line-name = "ftdi_reset";
-	};
+	};*/
 };
+
 
 &iomuxc {
 	pinctrl-names = "default";
@@ -567,7 +592,6 @@
 			MX8MP_IOMUXC_SAI1_TXD5__GPIO4_IO17					0x19
 			MX8MP_IOMUXC_GPIO1_IO11__GPIO1_IO11					0x19
 			MX8MP_IOMUXC_GPIO1_IO13__GPIO1_IO13					0x19
-			MX8MP_IOMUXC_GPIO1_IO05__GPIO1_IO05					0x19
 			MX8MP_IOMUXC_GPIO1_IO01__GPIO1_IO01					0x19
 			MX8MP_IOMUXC_GPIO1_IO14__GPIO1_IO14					0x19
 			MX8MP_IOMUXC_GPIO1_IO07__GPIO1_IO07					0x19
@@ -577,7 +601,14 @@
 			MX8MP_IOMUXC_SAI1_TXFS__GPIO4_IO10					0x19
 			MX8MP_IOMUXC_SAI1_RXD4__GPIO4_IO06					0x19
 			MX8MP_IOMUXC_UART1_TXD__GPIO5_IO23					0x19
-
+			MX8MP_IOMUXC_GPIO1_IO09__GPIO1_IO09					0x19
+			MX8MP_IOMUXC_UART1_RXD__GPIO5_IO22					0x19
+			MX8MP_IOMUXC_SAI1_TXD1__GPIO4_IO13					0x19
+			MX8MP_IOMUXC_SAI3_RXFS__GPIO4_IO28					0x19
+			MX8MP_IOMUXC_SAI3_RXC__GPIO4_IO29					0x19
+			MX8MP_IOMUXC_SAI3_RXD__GPIO4_IO30					0x19
+			MX8MP_IOMUXC_SAI3_TXFS__GPIO4_IO31					0x19
+			MX8MP_IOMUXC_SAI3_TXC__GPIO5_IO00					0x19
 
 		>;
 	};
@@ -604,6 +635,25 @@
 	// 		MX8MP_IOMUXC_SAI1_TXD5__ENET1_RGMII_TXC				0x00
 	// 	>;
 	// };
+
+		pinctrl_eqos0: eqosgrp {
+		fsl,pins = <
+			MX8MP_IOMUXC_ENET_RD0__ENET_QOS_RGMII_RD0			0x90
+			MX8MP_IOMUXC_ENET_RD1__ENET_QOS_RGMII_RD1			0x90
+			MX8MP_IOMUXC_ENET_RD2__ENET_QOS_RGMII_RD2			0x90
+			MX8MP_IOMUXC_ENET_RD3__ENET_QOS_RGMII_RD3			0x90
+			MX8MP_IOMUXC_ENET_RXC__CCM_ENET_QOS_CLOCK_GENERATE_RX_CLK	0x90
+			MX8MP_IOMUXC_ENET_RX_CTL__ENET_QOS_RGMII_RX_CTL			0x90
+			MX8MP_IOMUXC_ENET_TD0__ENET_QOS_RGMII_TD0			0x16
+			MX8MP_IOMUXC_ENET_TD1__ENET_QOS_RGMII_TD1			0x16
+			MX8MP_IOMUXC_ENET_TD2__ENET_QOS_RGMII_TD2			0x16
+			MX8MP_IOMUXC_ENET_TD3__ENET_QOS_RGMII_TD3			0x16
+			MX8MP_IOMUXC_ENET_TX_CTL__ENET_QOS_RGMII_TX_CTL			0x16
+			MX8MP_IOMUXC_ENET_TXC__CCM_ENET_QOS_CLOCK_GENERATE_TX_CLK	0x16
+			MX8MP_IOMUXC_SD2_WP__GPIO2_IO20					0x10
+			MX8MP_IOMUXC_GPIO1_IO10__GPIO1_IO10				0x150
+		>;
+	};
 
 	pinctrl_flexspi0: flexspi0grp {
 		fsl,pins = <
