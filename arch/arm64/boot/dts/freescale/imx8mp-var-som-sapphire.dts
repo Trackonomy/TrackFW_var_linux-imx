@@ -515,11 +515,10 @@
 	pinctrl-0 = <&pinctrl_ecspi1>;
 	cs-gpios = <&gpio5 17 GPIO_ACTIVE_HIGH>;
 	status = "okay";
-
+	
 	ads7846@0 {
 		status = "disabled";
 	};
-
 
 	rtc@0 {
 		compatible = "nxp,pca21125";
@@ -527,7 +526,14 @@
 		#address-cells = <1>;
   		#size-cells = <1>;
 		reg = <0>;
-		spi-max-frequency = <4000000>;
+		spi-max-frequency = <12000000>;
+		status = "okay";
+	};
+
+	spidev@1{
+		compatible = "var,spidev";
+		reg = <1>;
+		spi-max-frequency = <12000000>;
 		status = "okay";
 	};
 
@@ -548,12 +554,12 @@
 };
 
 &gpio1 {
-	cam_buf_hog {
+	/*cam_buf_hog {
 		gpio-hog;
 		gpios = <6 0>;
 		output-low;
 		line-name = "cam_buf";
-	};
+	};*/
 /*	ftdi_rst_hog {
 		gpio-hog;
 		gpios = <16 0>;
@@ -561,7 +567,14 @@
 		line-name = "ftdi_reset";
 	};*/
 };
-
+&gpio5{
+	lora_hog {
+		gpio-hog;
+		gpios = <23 0>;
+		output-high;
+		line-name = "lora_hog";
+	};
+};
 
 &iomuxc {
 	pinctrl-names = "default";
