@@ -513,28 +513,23 @@
 &ecspi1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_ecspi1>;
-	cs-gpios = <&gpio5 17 GPIO_ACTIVE_HIGH>;
+	cs-gpios = <&gpio5 17 GPIO_ACTIVE_HIGH> ,<&gpio5 23 GPIO_ACTIVE_LOW>;
 	status = "okay";
 	
-	ads7846@0 {
-		status = "disabled";
-	};
-
 	rtc@0 {
 		compatible = "nxp,pca21125";
 		pinctrl-names = "default";
-		#address-cells = <1>;
-  		#size-cells = <1>;
+		/*interrupt-parent = <&gpio3>;
+		interrupts = <17 IRQ_TYPE_EDGE_FALLING>;
+		int-gpio = <&gpio3 17 GPIO_ACTIVE_LOW>;*/
+		spi-max-frequency = <1500000>;
+		spi-cs-high;
 		reg = <0>;
-		spi-max-frequency = <12000000>;
-		status = "okay";
 	};
 
 	spidev@1{
 		compatible = "var,spidev";
 		reg = <1>;
-		spi-max-frequency = <12000000>;
-		status = "okay";
 	};
 
 };
@@ -544,13 +539,13 @@
 	pinctrl-0 = <&pinctrl_ecspi2>;
 	cs-gpios = <&gpio5 13 GPIO_ACTIVE_LOW>;
 	status = "disabled";
-
+/*
 	spidev@1 {
 		compatible = "var,spidev";
 		reg = <1>;
 		spi-max-frequency = <12000000>;
 		status = "disabled";
-	};
+	};*/
 };
 
 &gpio1 {
@@ -567,13 +562,13 @@
 		line-name = "ftdi_reset";
 	};*/
 };
-&gpio5{
-	lora_hog {
+&gpio4{
+/*	lora_hog {
 		gpio-hog;
-		gpios = <23 0>;
-		output-high;
+		gpios = <14 0>;
+		output-low;
 		line-name = "lora_hog";
-	};
+	};*/
 };
 
 &iomuxc {
@@ -594,7 +589,6 @@
 			MX8MP_IOMUXC_ECSPI2_MISO__GPIO5_IO12					0x19
 			MX8MP_IOMUXC_SAI2_MCLK__GPIO4_IO27					0x19
 			MX8MP_IOMUXC_SAI1_RXD7__GPIO4_IO09					0x19
-			MX8MP_IOMUXC_SAI1_TXD2__GPIO4_IO14					0x19
 			MX8MP_IOMUXC_SAI1_TXC__GPIO4_IO11					0x19
 			MX8MP_IOMUXC_SAI1_RXD6__GPIO4_IO08					0x19
 			MX8MP_IOMUXC_SAI1_TXD0__GPIO4_IO12					0x19
@@ -613,7 +607,7 @@
 			MX8MP_IOMUXC_GPIO1_IO03__GPIO1_IO03					0x19
 			MX8MP_IOMUXC_SAI1_TXFS__GPIO4_IO10					0x19
 			MX8MP_IOMUXC_SAI1_RXD4__GPIO4_IO06					0x19
-			MX8MP_IOMUXC_UART1_TXD__GPIO5_IO23					0x19
+			MX8MP_IOMUXC_SAI1_TXD2__GPIO4_IO14					0x19
 			MX8MP_IOMUXC_GPIO1_IO09__GPIO1_IO09					0x19
 			MX8MP_IOMUXC_UART1_RXD__GPIO5_IO22					0x19
 			MX8MP_IOMUXC_SAI1_TXD1__GPIO4_IO13					0x19
@@ -800,6 +794,7 @@
 			MX8MP_IOMUXC_I2C1_SDA__ECSPI1_MOSI				0x12
 			MX8MP_IOMUXC_I2C2_SCL__ECSPI1_MISO 				0x12
 			MX8MP_IOMUXC_I2C2_SDA__GPIO5_IO17				0x12
+			MX8MP_IOMUXC_UART1_TXD__GPIO5_IO23				0x12
 		>;
 	};
 

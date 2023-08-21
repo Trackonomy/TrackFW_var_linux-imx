@@ -1,176 +1,480 @@
-/* rtc-pca21125.c
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * An SPI driver for the Philips pca21125 RTC
+ * Copyright 2009 Cyber Switching, Inc.
  *
- * Driver for NXP  PCA21125 CMOS, SPI Compatible
- * Real Time Clock
+ * Author: Chris Verges <chrisv@cyberswitching.com>
+ * Maintainers: http://www.cyberswitching.com
  *
+ * based on the RS5C348 driver in this same directory.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
+ * Thanks to Christian Pellegrin <chripell@fsfe.org> for
+ * the sysfs contributions to this driver.
  *
+ * Please note that the CS is active high, so platform data
+ * should look something like:
+ *
+ * static struct spi_board_info ek_spi_devices[] = {
+ *	...
+ *	{
+ *		.modalias		= "rtc-pca21125",
+ *		.chip_select		= 1,
+ *		.controller_data	= (void *)AT91_PIN_PA10,
+ *		.max_speed_hz		= 1000 * 1000,
+ *		.mode			= SPI_CS_HIGH,
+ *		.bus_num		= 0,
+ *	},
+ *	...
+ *};
  */
 
-#include <linux/init.h>
-#include <linux/module.h>
+#include <linux/bcd.h>
+#include <linux/delay.h>
+#define DEBUG 1
 #include <linux/device.h>
-#include <linux/platform_device.h>
+#include <linux/errno.h>
+#include <linux/init.h>
+#include <linux/kernel.h>
+#include <linux/of.h>
+#include <linux/string.h>
+#include <linux/slab.h>
 #include <linux/rtc.h>
 #include <linux/spi/spi.h>
-#include <linux/bcd.h>
+#include <linux/module.h>
 #include <linux/regmap.h>
 
-/* Registers in pca21125 rtc */
 
-#define PCA21125_SECONDS_REG 0x02
-#define PCA21125_MINUTES_REG 0x03
-#define PCA21125_HOURS_REG 0x04
-#define PCA21125_DATE_REG 0x05
-#define PCA21125_DAY_REG 0x06
-#define PCA21125_MONTH_REG 0x07
-#define PCA21125_YEAR_REG 0x08
-#define PCA21125_CONTROL_REG 0x01
-#define PCA21125_STATUS_REG 0x00
-#define PCA21125_CLOCK_BURST 0x0D
+#define RTC_FEATURE_UPDATE_INTERRUPT	4
+/* REGISTERS */
+#define pca21125_REG_CTRL1	(0x00)	/* Control Register 1 */
+#define pca21125_REG_CTRL2	(0x01)	/* Control Register 2 */
+#define pca21125_REG_SC		(0x02)	/* datetime */
+#define pca21125_REG_MN		(0x03)
+#define pca21125_REG_HR		(0x04)
+#define pca21125_REG_DM		(0x05)
+#define pca21125_REG_DW		(0x06)
+#define pca21125_REG_MO		(0x07)
+#define pca21125_REG_YR		(0x08)
+#define pca21125_REG_ALRM_MN	(0x09)	/* Alarm Registers */
+#define pca21125_REG_ALRM_HR	(0x0a)
+#define pca21125_REG_ALRM_DM	(0x0b)
+#define pca21125_REG_ALRM_DW	(0x0c)
+#define pca21125_REG_OFFSET	(0x0d)	/* Clock Rate Offset Register */
+#define pca21125_REG_TMR_CLKOUT	(0x0e)	/* Timer Registers */
+#define pca21125_REG_CTDWN_TMR	(0x0f)
+
+/* pca21125_REG_CTRL1 BITS */
+#define CTRL1_CLEAR		(0)	/* Clear */
+#define CTRL1_CORR_INT		BIT(1)	/* Correction irq enable */
+#define CTRL1_12_HOUR		BIT(2)	/* 12 hour time */
+#define CTRL1_SW_RESET	(BIT(3) | BIT(4) | BIT(6))	/* Software reset */
+#define CTRL1_STOP		BIT(5)	/* Stop the clock */
+#define CTRL1_EXT_TEST		BIT(7)	/* External clock test mode */
+
+/* pca21125_REG_CTRL2 BITS */
+#define CTRL2_TIE		BIT(0)	/* Countdown timer irq enable */
+#define CTRL2_AIE		BIT(1)	/* Alarm irq enable */
+#define CTRL2_TF		BIT(2)	/* Countdown timer flag */
+#define CTRL2_AF		BIT(3)	/* Alarm flag */
+#define CTRL2_TI_TP		BIT(4)	/* Irq pin generates pulse */
+#define CTRL2_MSF		BIT(5)	/* Minute or second irq flag */
+#define CTRL2_SI		BIT(6)	/* Second irq enable */
+#define CTRL2_MI		BIT(7)	/* Minute irq enable */
+
+/* pca21125_REG_SC BITS */
+#define OSC_HAS_STOPPED		BIT(7)	/* Clock has been stopped */
+
+/* pca21125_REG_ALRM_XX BITS */
+#define ALRM_DISABLE		BIT(7)	/* MN, HR, DM, or DW alarm matching */
+
+/* pca21125_REG_TMR_CLKOUT BITS */
+#define CD_TMR_4096KHZ		(0)	/* 4096 KHz countdown timer */
+#define CD_TMR_64HZ		(1)	/* 64 Hz countdown timer */
+#define CD_TMR_1HZ		(2)	/* 1 Hz countdown timer */
+#define CD_TMR_60th_HZ		(3)	/* 60th Hz countdown timer */
+#define CD_TMR_TE		BIT(3)	/* Countdown timer enable */
+
+/* pca21125_REG_OFFSET BITS */
+#define OFFSET_SIGN_BIT		6	/* 2's complement sign bit */
+#define OFFSET_COARSE		BIT(7)	/* Coarse mode offset */
+#define OFFSET_STEP		(2170)	/* Offset step in parts per billion */
+#define OFFSET_MASK		GENMASK(6, 0)	/* Offset value */
+
+/* READ/WRITE ADDRESS BITS */
+#define pca21125_WRITE		BIT(4)
+#define pca21125_READ		(BIT(4) | BIT(7))
 
 
-static int pca21125_read_reg(struct device *dev, unsigned char address,
-                             unsigned char *data)
+static struct spi_driver pca21125_driver;
+
+struct pca21125_data {
+	struct rtc_device *rtc;
+	struct regmap *map;
+};
+
+static const struct regmap_config pca21125_regmap_config = {
+	.reg_bits = 8,
+	.val_bits = 8,
+	.read_flag_mask = pca21125_READ,
+	.write_flag_mask = pca21125_WRITE,
+	.max_register = pca21125_REG_CTDWN_TMR,
+};
+
+static int pca21125_read_offset(struct device *dev, long *offset)
 {
-    struct spi_device *spi = to_spi_device(dev);
+	struct pca21125_data *pca21125 = dev_get_drvdata(dev);
+	int ret, val;
+	unsigned int reg;
 
-    *data = address | 0x80;
+	ret = regmap_read(pca21125->map, pca21125_REG_OFFSET, &reg);
+	if (ret)
+		return ret;
 
-    return spi_write_then_read(spi, data, 1, data, 1);
+	val = sign_extend32((reg & OFFSET_MASK), OFFSET_SIGN_BIT);
+
+	if (reg & OFFSET_COARSE)
+		val *= 2;
+
+	*offset = ((long)val) * OFFSET_STEP;
+
+	return 0;
 }
 
-static int pca21125_write_reg(struct device *dev, unsigned char address,
-                              unsigned char data)
+/*
+ * The offset register is a 7 bit signed value with a coarse bit in bit 7.
+ * The main difference between the two is normal offset adjusts the first
+ * second of n minutes every other hour, with 61, 62 and 63 being shoved
+ * into the 60th minute.
+ * The coarse adjustment does the same, but every hour.
+ * the two overlap, with every even normal offset value corresponding
+ * to a coarse offset. Based on this algorithm, it seems that despite the
+ * name, coarse offset is a better fit for overlapping values.
+ */
+static int pca21125_set_offset(struct device *dev, long offset)
 {
-    struct spi_device *spi = to_spi_device(dev);
-    unsigned char buf[2];
+	struct pca21125_data *pca21125 = dev_get_drvdata(dev);
+	s8 reg;
 
-    buf[0] = address & 0x7F;
-    buf[1] = data;
+	if (offset > OFFSET_STEP * 127)
+		reg = 127;
+	else if (offset < OFFSET_STEP * -128)
+		reg = -128;
+	else
+		reg = DIV_ROUND_CLOSEST(offset, OFFSET_STEP);
 
-    return spi_write_then_read(spi, buf, 2, NULL, 0);
+	/* choose fine offset only for odd values in the normal range */
+	if (reg & 1 && reg <= 63 && reg >= -64) {
+		/* Normal offset. Clear the coarse bit */
+		reg &= ~OFFSET_COARSE;
+	} else {
+		/* Coarse offset. Divide by 2 and set the coarse bit */
+		reg >>= 1;
+		reg |= OFFSET_COARSE;
+	}
+
+	return regmap_write(pca21125->map, pca21125_REG_OFFSET, (unsigned int)reg);
 }
 
-static int pca21125_read_time(struct device *dev, struct rtc_time *dt)
+static int pca21125_rtc_read_time(struct device *dev, struct rtc_time *tm)
 {
-    struct spi_device *spi = to_spi_device(dev);
-    int err;
-    unsigned char buf[8];
+	struct pca21125_data *pca21125 = dev_get_drvdata(dev);
+	u8 rxbuf[7];
+	int ret;
 
-    buf[0] = PCA21125_CLOCK_BURST | 0x80;
+	ret = regmap_bulk_read(pca21125->map, pca21125_REG_SC, rxbuf,
+				sizeof(rxbuf));
+	if (ret)
+		return ret;
 
-    err = spi_write_then_read(spi, buf, 1, buf, 8);
+	if (rxbuf[0] & OSC_HAS_STOPPED) {
+		dev_info(dev, "clock was stopped. Time is not valid\n");
+		return -EINVAL;
+	}
 
-    if (err)
-        return err;
+	tm->tm_sec = bcd2bin(rxbuf[0] & 0x7F);
+	tm->tm_min = bcd2bin(rxbuf[1] & 0x7F);
+	tm->tm_hour = bcd2bin(rxbuf[2] & 0x3F); /* rtc hr 0-23 */
+	tm->tm_mday = bcd2bin(rxbuf[3] & 0x3F);
+	tm->tm_wday = rxbuf[4] & 0x07;
+	tm->tm_mon = bcd2bin(rxbuf[5] & 0x1F) - 1; /* rtc mn 1-12 */
+	tm->tm_year = bcd2bin(rxbuf[6]) + 100;
 
-    dt->tm_sec = bcd2bin(buf[0]);
-    dt->tm_min = bcd2bin(buf[1]);
-    dt->tm_hour = bcd2bin(buf[2] & 0x3F);
-    dt->tm_mday = bcd2bin(buf[3]);
-    dt->tm_mon = bcd2bin(buf[4]) - 1;
-    dt->tm_wday = bcd2bin(buf[5]) - 1;
-    dt->tm_year = bcd2bin(buf[6]) + 100;
+	dev_dbg(dev, "%s: tm is %ptR\n", __func__, tm);
 
-    return rtc_valid_tm(dt);
+	return 0;
 }
 
-static int pca21125_set_time(struct device *dev, struct rtc_time *dt)
+static int pca21125_rtc_set_time(struct device *dev, struct rtc_time *tm)
 {
-    struct spi_device *spi = to_spi_device(dev);
-    unsigned char buf[9];
+	struct pca21125_data *pca21125 = dev_get_drvdata(dev);
+	u8 txbuf[7];
+	int ret;
 
-    if (dt->tm_year < 100 || dt->tm_year > 199)
-    {
-        dev_err(&spi->dev, "Year must be between 2000 and 2099. It's %d.\n",
-                dt->tm_year + 1900);
-        return -EINVAL;
-    }
+	dev_dbg(dev, "%s: tm is %ptR\n", __func__, tm);
 
-    buf[0] = bin2bcd(dt->tm_sec);
-    buf[1] = bin2bcd(dt->tm_min);
-    buf[2] = (bin2bcd(dt->tm_hour) & 0X3F);
-    buf[3] = bin2bcd(dt->tm_mday);
-    buf[4] = bin2bcd(dt->tm_mon + 1);
-    buf[5] = bin2bcd(dt->tm_wday + 1);
-    buf[6] = bin2bcd(dt->tm_year % 100);
-    buf[7] = bin2bcd(0x00);
+	/* Stop the counter first */
+	ret = regmap_write(pca21125->map, pca21125_REG_CTRL1, CTRL1_STOP);
+	if (ret)
+		return ret;
 
-    /* write the rtc settings */
-    return spi_write_then_read(spi, buf, 9, NULL, 0);
+	/* Set the new time */
+	txbuf[0] = bin2bcd(tm->tm_sec & 0x7F);
+	txbuf[1] = bin2bcd(tm->tm_min & 0x7F);
+	txbuf[2] = bin2bcd(tm->tm_hour & 0x3F);
+	txbuf[3] = bin2bcd(tm->tm_mday & 0x3F);
+	txbuf[4] = tm->tm_wday & 0x07;
+	txbuf[5] = bin2bcd((tm->tm_mon + 1) & 0x1F); /* rtc mn 1-12 */
+	txbuf[6] = bin2bcd(tm->tm_year - 100);
+
+	ret = regmap_bulk_write(pca21125->map, pca21125_REG_SC, txbuf,
+				sizeof(txbuf));
+	if (ret)
+		return ret;
+
+	/* Start the counter */
+	ret = regmap_write(pca21125->map, pca21125_REG_CTRL1, CTRL1_CLEAR);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
+static int pca21125_rtc_alarm_irq_enable(struct device *dev, unsigned int en)
+{
+	struct pca21125_data *pca21125 = dev_get_drvdata(dev);
+
+	return regmap_update_bits(pca21125->map, pca21125_REG_CTRL2, CTRL2_AIE,
+				  en ? CTRL2_AIE : 0);
+}
+
+static int pca21125_rtc_read_alarm(struct device *dev, struct rtc_wkalrm *alm)
+{
+	struct pca21125_data *pca21125 = dev_get_drvdata(dev);
+	u8 rxbuf[4];
+	int ret;
+	unsigned int val = 0;
+
+	ret = regmap_bulk_read(pca21125->map, pca21125_REG_ALRM_MN, rxbuf,
+				sizeof(rxbuf));
+	if (ret)
+		return ret;
+
+	alm->time.tm_min = bcd2bin(rxbuf[0] & 0x7F);
+	alm->time.tm_hour = bcd2bin(rxbuf[1] & 0x3F);
+	alm->time.tm_mday = bcd2bin(rxbuf[2] & 0x3F);
+	alm->time.tm_wday = bcd2bin(rxbuf[3] & 0x07);
+
+	dev_dbg(dev, "%s: alm is %ptR\n", __func__, &alm->time);
+
+	ret = regmap_read(pca21125->map, pca21125_REG_CTRL2, &val);
+	if (ret)
+		return ret;
+
+	alm->enabled = !!(val & CTRL2_AIE);
+
+	return 0;
+}
+
+static int pca21125_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alm)
+{
+	struct pca21125_data *pca21125 = dev_get_drvdata(dev);
+	u8 txbuf[4];
+	int ret;
+
+	dev_dbg(dev, "%s: alm is %ptR\n", __func__, &alm->time);
+
+	/* Disable alarm interrupt */
+	ret = regmap_update_bits(pca21125->map, pca21125_REG_CTRL2, CTRL2_AIE, 0);
+	if (ret)
+		return ret;
+
+	/* Ensure alarm flag is clear */
+	ret = regmap_update_bits(pca21125->map, pca21125_REG_CTRL2, CTRL2_AF, 0);
+	if (ret)
+		return ret;
+
+	/* Set new alarm */
+	txbuf[0] = bin2bcd(alm->time.tm_min & 0x7F);
+	txbuf[1] = bin2bcd(alm->time.tm_hour & 0x3F);
+	txbuf[2] = bin2bcd(alm->time.tm_mday & 0x3F);
+	txbuf[3] = ALRM_DISABLE;
+
+	ret = regmap_bulk_write(pca21125->map, pca21125_REG_ALRM_MN, txbuf,
+				sizeof(txbuf));
+	if (ret)
+		return ret;
+
+	return pca21125_rtc_alarm_irq_enable(dev, alm->enabled);
+}
+
+static irqreturn_t pca21125_rtc_irq(int irq, void *dev)
+{
+	struct pca21125_data *pca21125 = dev_get_drvdata(dev);
+	unsigned int val = 0;
+	int ret = IRQ_NONE;
+
+	rtc_lock(pca21125->rtc);
+	regmap_read(pca21125->map, pca21125_REG_CTRL2, &val);
+
+	/* Alarm? */
+	if (val & CTRL2_AF) {
+		ret = IRQ_HANDLED;
+
+		/* Clear alarm flag */
+		regmap_update_bits(pca21125->map, pca21125_REG_CTRL2, CTRL2_AF, 0);
+
+		rtc_update_irq(pca21125->rtc, 1, RTC_IRQF | RTC_AF);
+	}
+
+	rtc_unlock(pca21125->rtc);
+
+	return ret;
+}
+
+static int pca21125_reset(struct device *dev)
+{
+	struct pca21125_data *pca21125 = dev_get_drvdata(dev);
+	int ret;
+	unsigned int val = 0;
+
+	ret = regmap_write(pca21125->map, pca21125_REG_CTRL1, CTRL1_SW_RESET);
+	if (ret)
+		return ret;
+
+	/* Stop the counter */
+	dev_dbg(dev, "stopping RTC\n");
+	ret = regmap_write(pca21125->map, pca21125_REG_CTRL1, CTRL1_STOP);
+	if (ret)
+		return ret;
+
+	/* See if the counter was actually stopped */
+	dev_dbg(dev, "checking for presence of RTC\n");
+	ret = regmap_read(pca21125->map, pca21125_REG_CTRL1, &val);
+	if (ret)
+		return ret;
+
+	dev_dbg(dev, "received data from RTC (0x%08X)\n", val);
+	if (!(val & CTRL1_STOP))
+		return -ENODEV;
+
+	/* Start the counter */
+	ret = regmap_write(pca21125->map, pca21125_REG_CTRL1, CTRL1_CLEAR);
+	if (ret)
+		return ret;
+
+	return 0;
 }
 
 static const struct rtc_class_ops pca21125_rtc_ops = {
-    .read_time = pca21125_read_time,
-    .set_time = pca21125_set_time,
+	.read_time	= pca21125_rtc_read_time,
+	.set_time	= pca21125_rtc_set_time,
+	.read_offset	= pca21125_read_offset,
+	.set_offset	= pca21125_set_offset,
+	.read_alarm	= pca21125_rtc_read_alarm,
+	.set_alarm	= pca21125_rtc_set_alarm,
+	.alarm_irq_enable = pca21125_rtc_alarm_irq_enable,
 };
 
 static int pca21125_probe(struct spi_device *spi)
 {
-    struct rtc_device *rtc;
-    unsigned char data;
-    int res;
+	struct rtc_device *rtc;
+	struct rtc_time tm;
+	struct pca21125_data *pca21125;
+	int ret = 0;
 
-    /* spi setup with pca21125 in mode 3 and bits per word as 8 */
-    spi->mode = SPI_MODE_3;
-    spi->bits_per_word = 8;
-    spi_setup(spi);
+	pca21125 = devm_kzalloc(&spi->dev, sizeof(struct pca21125_data),
+				GFP_KERNEL);
+	if (!pca21125)
+		return -ENOMEM;
 
-    /* RTC Settings */
-    res = pca21125_read_reg(&spi->dev, PCA21125_SECONDS_REG, &data);
-    if (res)
-        return res;
 
-    /* Disable the write protect of rtc */
-    pca21125_read_reg(&spi->dev, PCA21125_CONTROL_REG, &data);
-    data = data & ~(1 << 7);
-    pca21125_write_reg(&spi->dev, PCA21125_CONTROL_REG, data);
+	pca21125->map = devm_regmap_init_spi(spi, &pca21125_regmap_config);
+	if (IS_ERR(pca21125->map)) {
+		dev_err(&spi->dev, "regmap init failed.\n");
+		return PTR_ERR(pca21125->map);
+	}
 
-    /*Enable oscillator,disable oscillator stop flag, glitch filter*/
-    pca21125_read_reg(&spi->dev, PCA21125_STATUS_REG, &data);
-    data = data & 0x1B;
-    pca21125_write_reg(&spi->dev, PCA21125_STATUS_REG, data);
+	dev_set_drvdata(&spi->dev, pca21125);
+    
+	ret = pca21125_rtc_read_time(&spi->dev, &tm);
+	if (ret < 0) {
+		ret = pca21125_reset(&spi->dev);
+		if (ret < 0) {
+			dev_err(&spi->dev, "chip not found\n");
+			return ret;
+		}
+	}
 
-    /* display the settings */
-    pca21125_read_reg(&spi->dev, PCA21125_CONTROL_REG, &data);
-    dev_info(&spi->dev, "PCA21125 RTC CTRL Reg = 0x%02x\n", data);
+	dev_info(&spi->dev, "spiclk %u KHz.\n",
+			(spi->max_speed_hz + 500) / 1000);
 
-    pca21125_read_reg(&spi->dev, PCA21125_STATUS_REG, &data);
-    dev_info(&spi->dev, "PCA21125 RTC Status Reg = 0x%02x\n", data);
+	/* Finalize the initialization */
+	rtc = devm_rtc_allocate_device(&spi->dev);
+	if (IS_ERR(rtc))
+		return PTR_ERR(rtc);
 
-    rtc = devm_rtc_device_register(&spi->dev, "pca21125",
-                                   &pca21125_rtc_ops, THIS_MODULE);
-    if (IS_ERR(rtc))
-        return PTR_ERR(rtc);
+	pca21125->rtc = rtc;
 
-    spi_set_drvdata(spi, rtc);
+	/* Register alarm irq */
+	if (spi->irq > 0) {
+		ret = devm_request_threaded_irq(&spi->dev, spi->irq, NULL,
+				pca21125_rtc_irq,
+				IRQF_TRIGGER_LOW | IRQF_ONESHOT,
+				pca21125_driver.driver.name, &spi->dev);
+		if (!ret)
+			device_init_wakeup(&spi->dev, true);
+		else
+			dev_err(&spi->dev, "could not request irq.\n");
+	}
 
-    return 0;
+	/* The pca21125's alarm only has minute accuracy. Must add timer
+	 * support to this driver to generate interrupts more than once
+	 * per minute.
+	 */
+	//set_bit(RTC_FEATURE_ALARM_RES_MINUTE, rtc->features);
+	//clear_bit(RTC_FEATURE_UPDATE_INTERRUPT, rtc->features);
+	rtc->ops = &pca21125_rtc_ops;
+	rtc->range_min = RTC_TIMESTAMP_BEGIN_2000;
+	rtc->range_max = RTC_TIMESTAMP_END_2099;
+	rtc->set_start_time = true;
+
+	ret = devm_rtc_register_device(rtc);
+	if (ret)
+		return ret;
+
+	return 0;
 }
 
-static const struct of_device_id pca21125_of_match[] = {
-	{.compatible = "nxp,pca21125"},
-	{},
+#ifdef CONFIG_OF
+static const struct of_device_id pca21125_dt_ids[] = {
+	{ .compatible = "nxp,pca21125", },
+	{ .compatible = "microcrystal,rv2123", },
+	/* Deprecated, do not use */
+	{ .compatible = "nxp,rtc-pca21125", },
+	{ /* sentinel */ }
 };
+MODULE_DEVICE_TABLE(of, pca21125_dt_ids);
+#endif
 
-MODULE_DEVICE_TABLE(of, pca21125_of_match);
-
-
+static const struct spi_device_id pca21125_spi_ids[] = {
+	{ .name = "pca21125", },
+	{ .name = "rv2123", },
+	{ .name = "rtc-pca21125", },
+	{ /* sentinel */ }
+};
+MODULE_DEVICE_TABLE(spi, pca21125_spi_ids);
 
 static struct spi_driver pca21125_driver = {
-    .driver = {
-        .name = "pca21125",
-	.of_match_table = pca21125_of_match,
-    },
-    .probe = pca21125_probe,
+	.driver	= {
+			.name	= "rtc-pca21125",
+			.of_match_table = of_match_ptr(pca21125_dt_ids),
+	},
+	.probe	= pca21125_probe,
+	.id_table = pca21125_spi_ids,
 };
+
 module_spi_driver(pca21125_driver);
 
-MODULE_DESCRIPTION("PCA21125 SPI RTC DRIVER");
-MODULE_AUTHOR("Venkat Prashanth B U <venkat.prashanth2498@gmail.com>");
-MODULE_LICENSE("GPL v2");
-
+MODULE_AUTHOR("Aditya <aditya@trackonomysystems.com>");
+MODULE_DESCRIPTION("NXP pca21125 RTC driver");
+MODULE_LICENSE("GPL");
