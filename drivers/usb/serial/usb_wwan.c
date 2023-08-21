@@ -227,7 +227,7 @@ static void usb_wwan_indat_callback(struct urb *urb)
 			__func__, status, endpoint);
 
 		/* don't resubmit on fatal errors */
-		if (status == -ESHUTDOWN || status == -ENOENT)
+		if (status == -ESHUTDOWN || status == -ENOENT || status == -EPROTO)
 			return;
 	} else {
 		if (urb->actual_length) {
@@ -389,8 +389,7 @@ void usb_wwan_close(struct usb_serial_port *port)
 
 	/*
 	 * Need to take susp_lock to make sure port is not already being
-	 * resumed, but no need to hold it due to the tty-port initialized
-	 * flag.
+	 * resumed, but no need to hold it due to initialized
 	 */
 	spin_lock_irq(&intfdata->susp_lock);
 	if (--intfdata->open_ports == 0)
@@ -431,6 +430,19 @@ static struct urb *usb_wwan_setup_urb(struct usb_serial_port *port,
 	usb_fill_bulk_urb(urb, serial->dev,
 			  usb_sndbulkpipe(serial->dev, endpoint) | dir,
 			  buf, len, callback, ctx);
+
+#if 1 //Added by Quectel for Zero Packet
+	if (dir == USB_DIR_OUT) {
+		if (serial->dev->descriptor.idVendor == cpu_to_le16(0x05C6) && serial->dev->descriptor.idProduct == cpu_to_le16(0x9090))
+			urb->transfer_flags |= URB_ZERO_PACKET;
+		if (serial->dev->descriptor.idVendor == cpu_to_le16(0x05C6) && serial->dev->descriptor.idProduct == cpu_to_le16(0x9003))
+			urb->transfer_flags |= URB_ZERO_PACKET;
+		if (serial->dev->descriptor.idVendor == cpu_to_le16(0x05C6) && serial->dev->descriptor.idProduct == cpu_to_le16(0x9215))
+			urb->transfer_flags |= URB_ZERO_PACKET;
+		if (serial->dev->descriptor.idVendor == cpu_to_le16(0x2C7C))
+			urb->transfer_flags |= URB_ZERO_PACKET;
+	}
+#endif
 
 	if (intfdata->use_zlp && dir == USB_DIR_OUT)
 		urb->transfer_flags |= URB_ZERO_PACKET;
