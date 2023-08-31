@@ -1387,11 +1387,6 @@ config GPIO_TIMBERDALE
 	help
 	Add support for the GPIO IP in the timberdale FPGA.
 
-config GPIO_TRK_ISR_HANDLE
-	tristate "Support for TRK interrupt to signal driver"
-	help
-	Add support for the GPIO Interrupt to signal for user space.
-
 config GPIO_TPS65086
 	tristate "TI TPS65086 GPO"
 	depends on MFD_TPS65086
