@@ -13,9 +13,14 @@
 		stdout-path = &uart2;
 	};
 
-
-
-
+	gpio_interrupt {
+        compatible = "gpio-trk-inthandler";
+        gpios = <&gpio1 1 GPIO_ACTIVE_LOW>,
+                <&gpio1 7 GPIO_ACTIVE_LOW>,
+               /* <&gpio1 14 GPIO_ACTIVE_LOW>, //temperature sensor*/
+                <&gpio1 13 GPIO_ACTIVE_LOW>,
+                <&gpio4 29 GPIO_ACTIVE_LOW>;
+    };
 
 	gpio-leds {
 		compatible = "gpio-leds";
