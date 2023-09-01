@@ -48,6 +48,8 @@
 		};*/
 	};
 
+	
+
 	backlight: backlight {
 		compatible = "pwm-backlight";
 		pwms = <&pwm1 0 1000000>;
@@ -563,6 +565,14 @@
 	};*/
 };
 &gpio4{
+/*	gpio_interrupt {
+    	compatible = "gpio-trk-inthandler";
+    	mcu-gpios = <&gpio4 29 GPIO_ACTIVE_LOW>;
+	 	gpio-activelow;
+        interrupt-parent = <&gpio4>;
+        interrupts = <12 IRQ_TYPE_EDGE_RISING>;
+	};*/
+
 /*	lora_hog {
 		gpio-hog;
 		gpios = <14 0>;
