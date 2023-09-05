@@ -1,15 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * An SPI driver for the Philips pca21125 RTC
- * Copyright 2009 Cyber Switching, Inc.
  *
- * Author: Chris Verges <chrisv@cyberswitching.com>
- * Maintainers: http://www.cyberswitching.com
  *
- * based on the RS5C348 driver in this same directory.
- *
- * Thanks to Christian Pellegrin <chripell@fsfe.org> for
- * the sysfs contributions to this driver.
+ * based on the PCF2123 driver in this same directory.
  *
  * Please note that the CS is active high, so platform data
  * should look something like:
@@ -64,11 +58,11 @@
 #define pca21125_REG_CTDWN_TMR	(0x0f)
 
 /* pca21125_REG_CTRL1 BITS */
-#define CTRL1_CLEAR		(0)	/* Clear */
-#define CTRL1_CORR_INT		BIT(1)	/* Correction irq enable */
+#define CTRL1_CLEAR			(0)	/* Clear */
+#define CTRL1_CORR_INT		(0)		/* Clear*/
 #define CTRL1_12_HOUR		BIT(2)	/* 12 hour time */
-#define CTRL1_SW_RESET	(BIT(3) | BIT(4) | BIT(6))	/* Software reset */
-#define CTRL1_STOP		BIT(5)	/* Stop the clock */
+#define CTRL1_SW_RESET		( BIT(4) | BIT(6))	/* Software reset */
+#define CTRL1_STOP			BIT(5)	/* Stop the clock */
 #define CTRL1_EXT_TEST		BIT(7)	/* External clock test mode */
 
 /* pca21125_REG_CTRL2 BITS */
@@ -92,7 +86,7 @@
 #define CD_TMR_64HZ		(1)	/* 64 Hz countdown timer */
 #define CD_TMR_1HZ		(2)	/* 1 Hz countdown timer */
 #define CD_TMR_60th_HZ		(3)	/* 60th Hz countdown timer */
-#define CD_TMR_TE		BIT(3)	/* Countdown timer enable */
+#define CD_TMR_TE		BIT(7)	/* Countdown timer enable */
 
 /* pca21125_REG_OFFSET BITS */
 #define OFFSET_SIGN_BIT		6	/* 2's complement sign bit */
@@ -368,8 +362,8 @@ static int pca21125_reset(struct device *dev)
 static const struct rtc_class_ops pca21125_rtc_ops = {
 	.read_time	= pca21125_rtc_read_time,
 	.set_time	= pca21125_rtc_set_time,
-	.read_offset	= pca21125_read_offset,
-	.set_offset	= pca21125_set_offset,
+	//.read_offset	= pca21125_read_offset,
+	//.set_offset	= pca21125_set_offset,
 	.read_alarm	= pca21125_rtc_read_alarm,
 	.set_alarm	= pca21125_rtc_set_alarm,
 	.alarm_irq_enable = pca21125_rtc_alarm_irq_enable,

@@ -274,14 +274,14 @@
 			output-high;
 			line-name = "cell_pwr_en";
 		};
-
+/*
 		cell_pwr_full_off {
 			gpio-hog;
 			gpios = <9 0>;
 			output-high;
 			line-name = "cell_pwr_full_off";
 		};
-
+*/
 	/*	cell_rst {
 			gpio-hog;
 			gpios = <10 0>;
@@ -521,9 +521,9 @@
 	rtc@0 {
 		compatible = "nxp,pca21125";
 		pinctrl-names = "default";
-		/*interrupt-parent = <&gpio3>;
+		interrupt-parent = <&gpio4>;
 		interrupts = <17 IRQ_TYPE_EDGE_FALLING>;
-		int-gpio = <&gpio3 17 GPIO_ACTIVE_LOW>;*/
+		int-gpio = <&gpio4 17 GPIO_ACTIVE_LOW>;
 		spi-max-frequency = <1500000>;
 		spi-cs-high;
 		reg = <0>;
