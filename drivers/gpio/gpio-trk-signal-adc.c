@@ -139,7 +139,7 @@ static int __init etx_driver_init(void)
     }
  
     /*Creating struct class*/
-    if(IS_ERR(dev_class = class_create(THIS_MODULE,"etx_class"))){
+    if(IS_ERR(dev_class = class_create(THIS_MODULE,"trk_adc_class"))){
         printk(KERN_INFO "Cannot create the struct class\n");
         goto r_class;
     }

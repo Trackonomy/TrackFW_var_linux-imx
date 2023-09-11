@@ -123,7 +123,7 @@ static long etx_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 static int __init etx_driver_init(void)
 {
     /*Allocating Major number*/
-    if((alloc_chrdev_region(&dev, 0, 1, "motion_adc_Dev")) <0){
+    if((alloc_chrdev_region(&dev, 0, 1, "trk_motion_Dev")) <0){
             printk(KERN_INFO "Cannot allocate major number\n");
             return -1;
     }
@@ -139,7 +139,7 @@ static int __init etx_driver_init(void)
     }
  
     /*Creating struct class*/
-    if(IS_ERR(dev_class = class_create(THIS_MODULE,"etx_class"))){
+    if(IS_ERR(dev_class = class_create(THIS_MODULE,"trk_motion_class"))){
         printk(KERN_INFO "Cannot create the struct class\n");
         goto r_class;
     }
