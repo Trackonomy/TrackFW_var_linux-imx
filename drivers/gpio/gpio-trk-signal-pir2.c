@@ -14,15 +14,18 @@
 #include <linux/interrupt.h>
 #include <asm/io.h>
 #include <linux/err.h>
-#define SEND_SIGNAL SIGRTMIN+6
+#define SEND_SIGNAL SIGRTMAX-6
  
 #define REG_CURRENT_TASK _IOW('a','a',int32_t*)
  
 #define IRQ_NO 236
 
 #define GPIO_IN (102)
+ 
+#define DEVICE_DEV "trk_pir2_Dev"
+#define DEVICE_CLASS "trk_pir2_class"
+#define DEVICE_USER "trk_pir2_device"
 
-unsigned int GPIO_irqNumber;
  
 /* Signaling to Application */
 static struct task_struct *task = NULL;
@@ -118,12 +121,12 @@ static long etx_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
     }
     return 0;
 }
- 
+
  
 static int __init etx_driver_init(void)
 {
     /*Allocating Major number*/
-    if((alloc_chrdev_region(&dev, 0, 1, "trk_pir2_Dev")) <0){
+    if((alloc_chrdev_region(&dev, 0, 1, DEVICE_DEV)) <0){
             printk(KERN_INFO "Cannot allocate major number\n");
             return -1;
     }
@@ -139,13 +142,13 @@ static int __init etx_driver_init(void)
     }
  
     /*Creating struct class*/
-    if(IS_ERR(dev_class = class_create(THIS_MODULE,"trk_pir2_class"))){
+    if(IS_ERR(dev_class = class_create(THIS_MODULE,DEVICE_CLASS))){
         printk(KERN_INFO "Cannot create the struct class\n");
         goto r_class;
     }
  
     /*Creating device*/
-    if(IS_ERR(device_create(dev_class,NULL,dev,NULL,"trk_pir2_device"))){
+    if(IS_ERR(device_create(dev_class,NULL,dev,NULL,DEVICE_USER))){
         printk(KERN_INFO "Cannot create the Device 1\n");
         goto r_device;
     }
