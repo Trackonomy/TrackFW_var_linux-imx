@@ -554,6 +554,13 @@ config SPI_LANTIQ_SSC
 	  This driver supports the Lantiq SSC SPI controller in master
 	  mode. This controller is found on Intel (former Lantiq) SoCs like
 	  the Danube, Falcon, xRX200, xRX300, Lightning Mountain.
+	
+
+config SPI_LORA_RFM
+	tristate "RFM95 Lora device driver"
+	depends on  MAC802154
+	help
+	  This driver is support RFM95 lora device driver
 
 config SPI_OC_TINY
 	tristate "OpenCores tiny SPI"
